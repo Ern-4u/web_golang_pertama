@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Pendaftaran Kegiatan HMPI</title>
+</head>
+<body>
+    <h2>Form Pendaftaran Panitia / Peserta</h2>
+    
+    <!-- Data akan dikirim ke alamat "/proses" dengan metode POST -->
+    <form action="/proses" method="POST">
+        <label for="nama">Nama Lengkap:</label><br>
+        <input type="text" id="nama" name="nama" required><br><br>
+
+        <label for="nim">NIM:</label><br>
+        <input type="text" id="nim" name="nim" required><br><br>
+
+        <label for="divisi">Pilihan Divisi:</label><br>
+        <select id="divisi" name="divisi">
+            <option value="Acara">Acara</option>
+            <option value="Humas">Humas</option>
+            <option value="Perlengkapan">Perlengkapan</option>
+        </select><br><br>
+
+        <button type="submit">Kirim Pendaftaran</button>
+    </form>
+</body>
+</html>
