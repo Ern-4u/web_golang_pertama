@@ -5,7 +5,10 @@ import (
 	"html/template"
 	"net/http"
 	"path"
+	"strings" // Tambahkan ini
+	"strconv" // Tambahkan ini
 )
+
 
 // Handler 1: Menampilkan halaman form
 func tampilkanForm(w http.ResponseWriter, r *http.Request) {
@@ -25,31 +28,64 @@ func tampilkanForm(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, nil)
 }
 
-// Handler 2: Memproses data yang dikirim dari form
+
+
 func prosesPendaftaran(w http.ResponseWriter, r *http.Request) {
-	// Wajibkan harus menggunakan metode POST!
 	if r.Method != "POST" {
 		http.Error(w, "Harus menggunakan metode POST", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// 1. Wajib dipanggil sebelum mengambil data! Ini menyuruh Go mengurai isi form.
-	err := r.ParseForm()
-	if err != nil {
-		http.Error(w, "Gagal memproses form", http.StatusInternalServerError)
+	r.ParseForm()
+
+	// 1. Ambil data dan bersihkan spasi yang tidak sengaja terketik di awal/akhir
+	namaPengirim := strings.TrimSpace(r.FormValue("nama"))
+	nimPengirim := strings.TrimSpace(r.FormValue("nim"))
+	pilihanDivisi := r.FormValue("divisi")
+
+	// ==========================================
+	// 2. MULAI PROSES VALIDASI
+	// ==========================================
+
+	// Validasi A: Pastikan tidak ada yang kosong
+	if namaPengirim == "" || nimPengirim == "" {
+		// Kita kembalikan pesan error dan hentikan proses dengan 'return'
+		http.Error(w, "Peringatan: Nama dan NIM tidak boleh kosong!", http.StatusBadRequest)
 		return
 	}
 
-	// 2. Ambil datanya berdasarkan atribut 'name' di file HTML
-	namaPengirim := r.FormValue("nama")
-	nimPengirim := r.FormValue("nim")
-	pilihanDivisi := r.FormValue("divisi")
+	// Validasi B: Pastikan NIM panjangnya minimal 8 karakter
+	if len(nimPengirim) < 8 {
+		http.Error(w, "Peringatan: Format NIM tidak valid (minimal 8 karakter).", http.StatusBadRequest)
+		return
+	}
 
-	// 3. Cetak hasilnya sebagai balasan ke layar browser
-	fmt.Fprintf(w, "Pendaftaran Sukses!\n\n")
-	fmt.Fprintf(w, "Selamat bergabung, %s (%s).\n", namaPengirim, nimPengirim)
-	fmt.Fprintf(w, "Anda telah terdaftar di Divisi %s.", pilihanDivisi)
+	// Validasi C: Pastikan NIM HANYA berisi angka
+	// strconv.Atoi mencoba mengubah string menjadi integer (angka bulat).
+	// Jika gagal (error tidak nil), berarti ada huruf di dalamnya.
+	_, errAngka := strconv.Atoi(nimPengirim)
+	if errAngka != nil {
+		http.Error(w, "Peringatan: NIM harus berupa angka!", http.StatusBadRequest)
+		return
+	}
+
+	// Validasi D: Pastikan Divisi sesuai dengan opsi panitia yang ada
+	if pilihanDivisi != "Acara" && pilihanDivisi != "Humas" && pilihanDivisi != "Perlengkapan" {
+		http.Error(w, "Peringatan: Pilihan divisi tidak dikenali.", http.StatusBadRequest)
+		return
+	}
+
+	// ==========================================
+	// 3. JIKA LOLOS SEMUA VALIDASI, TAMPILKAN SUKSES
+	// ==========================================
+	
+	fmt.Fprintf(w, "PENDAFTARAN BERHASIL!\n\n")
+	fmt.Fprintf(w, "Nama   : %s\n", namaPengirim)
+	fmt.Fprintf(w, "NIM    : %s\n", nimPengirim)
+	fmt.Fprintf(w, "Divisi : %s\n", pilihanDivisi)
+	fmt.Fprintf(w, "\nData Anda siap dimasukkan ke dalam database panitia.")
 }
+
 
 func main() {
 	// Rute untuk melihat form
