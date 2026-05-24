@@ -1,99 +1,125 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"html/template"
 	"net/http"
 	"path"
-	"strings" // Tambahkan ini
-	"strconv" // Tambahkan ini
+	"strconv"
+	"strings"
+	"net/mail"
+	_ "github.com/go-sql-driver/mysql" // Driver MySQL
 )
 
+// Kita buat variabel global 'db' agar bisa diakses oleh semua fungsi
+var db *sql.DB
 
-// Handler 1: Menampilkan halaman form
+// Fungsi khusus untuk menyalakan database
+func connectDB() {
+	var err error
+	dsn := "root:@tcp(localhost:3306)/dbl_golang"
+	db, err = sql.Open("mysql", dsn)
+	if err != nil {
+		panic("Gagal konfigurasi database: " + err.Error())
+	}
+
+	err = db.Ping()
+	if err != nil {
+		panic("MySQL mati atau tidak ditemukan: " + err.Error())
+	}
+	fmt.Println("✅ Database MySQL (Laragon) Terhubung!")
+}
+
+// Handler 1: Tampilkan Form
 func tampilkanForm(w http.ResponseWriter, r *http.Request) {
-	// Pastikan hanya melayani request GET biasa (ketika orang baru membuka URL)
 	if r.Method != "GET" {
 		http.Error(w, "Metode tidak diizinkan", http.StatusMethodNotAllowed)
 		return
 	}
-
-	filepath := path.Join("views", "index.html")
+	filepath := path.Join("views", "form.html")
 	tmpl, err := template.ParseFiles(filepath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	tmpl.Execute(w, nil)
 }
 
-
-
+// Handler 2: Tangkap, Validasi, dan Simpan ke DB
 func prosesPendaftaran(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Harus menggunakan metode POST", http.StatusMethodNotAllowed)
 		return
 	}
-
 	r.ParseForm()
 
-	// 1. Ambil data dan bersihkan spasi yang tidak sengaja terketik di awal/akhir
-	namaPengirim := strings.TrimSpace(r.FormValue("nama"))
-	nimPengirim := strings.TrimSpace(r.FormValue("nim"))
-	pilihanDivisi := r.FormValue("divisi")
+	nama := strings.TrimSpace(r.FormValue("nama"))
+	nim := strings.TrimSpace(r.FormValue("nim"))
+	alamat := strings.TrimSpace(r.FormValue("alamat"))
+	noHp := strings.TrimSpace(r.FormValue("no_hp"))
+	email := strings.TrimSpace(r.FormValue("email"))
+	jenis_kelamin := r.FormValue("jenis_kelamin")
 
-	// ==========================================
-	// 2. MULAI PROSES VALIDASI
-	// ==========================================
-
-	// Validasi A: Pastikan tidak ada yang kosong
-	if namaPengirim == "" || nimPengirim == "" {
-		// Kita kembalikan pesan error dan hentikan proses dengan 'return'
-		http.Error(w, "Peringatan: Nama dan NIM tidak boleh kosong!", http.StatusBadRequest)
+	// --- SATPAM VALIDASI ---
+	if nama == "" || nim == "" || alamat == "" || noHp == "" || email == "" || jenis_kelamin == "" {
+		http.Error(w, "Semua field harus diisi!", http.StatusBadRequest)
 		return
 	}
-
-	// Validasi B: Pastikan NIM panjangnya minimal 8 karakter
-	if len(nimPengirim) < 8 {
-		http.Error(w, "Peringatan: Format NIM tidak valid (minimal 8 karakter).", http.StatusBadRequest)
+	if len(nim) < 8 {
+		http.Error(w, "Format NIM tidak valid (minimal 8 karakter).", http.StatusBadRequest)
 		return
 	}
-
-	// Validasi C: Pastikan NIM HANYA berisi angka
-	// strconv.Atoi mencoba mengubah string menjadi integer (angka bulat).
-	// Jika gagal (error tidak nil), berarti ada huruf di dalamnya.
-	_, errAngka := strconv.Atoi(nimPengirim)
-	if errAngka != nil {
-		http.Error(w, "Peringatan: NIM harus berupa angka!", http.StatusBadRequest)
+	_, errNim := strconv.Atoi(nim)
+	if errNim != nil {
+		http.Error(w, "NIM harus berupa angka!", http.StatusBadRequest)
 		return
 	}
-
-	// Validasi D: Pastikan Divisi sesuai dengan opsi panitia yang ada
-	if pilihanDivisi != "Acara" && pilihanDivisi != "Humas" && pilihanDivisi != "Perlengkapan" {
-		http.Error(w, "Peringatan: Pilihan divisi tidak dikenali.", http.StatusBadRequest)
+	_, errNoHp := strconv.Atoi(noHp)
+	if errNoHp != nil {
+		http.Error(w, "No HP harus berupa angka!", http.StatusBadRequest)
 		return
 	}
-
-	// ==========================================
-	// 3. JIKA LOLOS SEMUA VALIDASI, TAMPILKAN SUKSES
-	// ==========================================
+	if len(noHp) < 10 {
+		http.Error(w, "No HP terlalu pendek (minimal 10 digit).", http.StatusBadRequest)
+		return
+	}
+	_, errEmail := mail.ParseAddress(email)
+	if errEmail != nil {
+		http.Error(w, "Peringatan: Penulisan alamat email tidak valid!", http.StatusBadRequest)
+		return
+	}
 	
-	fmt.Fprintf(w, "PENDAFTARAN BERHASIL!\n\n")
-	fmt.Fprintf(w, "Nama   : %s\n", namaPengirim)
-	fmt.Fprintf(w, "NIM    : %s\n", nimPengirim)
-	fmt.Fprintf(w, "Divisi : %s\n", pilihanDivisi)
-	fmt.Fprintf(w, "\nData Anda siap dimasukkan ke dalam database panitia.")
+	if jenis_kelamin != "Laki-laki" && jenis_kelamin != "Perempuan" {
+		http.Error(w, "Jenis kelamin tidak valid.", http.StatusBadRequest)
+		return
+	}
+	// -----------------------
+
+	// --- PROSES SIMPAN KE DATABASE (GUDANG) ---
+	// Kita menggunakan db.Exec untuk menjalankan perintah INSERT
+	_, errDB := db.Exec("INSERT INTO tbl_mahasiswa (nama, nim, alamat, email, no_hp, jenis_kelamin) VALUES (?, ?, ?, ?, ?, ?)", nama, nim, alamat, email, noHp, jenis_kelamin)
+
+	if errDB != nil {
+		http.Error(w, "Server gagal menyimpan data ke database.", http.StatusInternalServerError)
+		fmt.Println("Error DB:", errDB) // Tampilkan error di terminal untuk kita (programmer)
+		return
+	}
+
+	// Jika sukses melewati DB
+	fmt.Fprintf(w, "🎉 PENDAFTARAN BERHASIL!\n\n")
+	fmt.Fprintf(w, "Data Saudara %s telah resmi tersimpan di database kami.", nama)
 }
 
-
 func main() {
-	// Rute untuk melihat form
+	// Nyalakan koneksi DB pertama kali saat server hidup
+	connectDB()
+	// Pastikan DB ditutup kalau server dimatikan (Ctrl+C)
+	defer db.Close() 
+
 	http.HandleFunc("/", tampilkanForm)
-	
-	// Rute tujuan dari 'action' di form HTML
 	http.HandleFunc("/proses", prosesPendaftaran)
 
-	fmt.Println("Server berjalan di http://localhost:8080")
+	fmt.Println("🚀 Server Web berjalan di http://localhost:8080")
 	http.ListenAndServe(":8080", nil)
 }
