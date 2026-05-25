@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Daftar Pendaftar HMPI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h2>Daftar Pendaftar Kegiatan</h2>
+    <a href="/">+ Tambah Pendaftar Baru</a>
+
+    <table>
+        <tr>
+            <th>Nomor</th>
+            <th>NIM</th>
+            <th>Nama Lengkap</th>
+            <th>Alamat</th>
+            <th>No. HP</th>
+            <th>Email</th>
+            <th>Jenis Kelamin</th>
+        </tr>
+        
+        {{range .}}
+        <tr>
+            <td>{{.Nomor}}</td>
+            <td>{{.NIM}}</td>
+            <td>{{.Nama}}</td>
+            <td>{{.Alamat}}</td>
+            <td>{{.NoHP}}</td>
+            <td>{{.Email}}</td>
+            <td>{{.JenisKelamin}}</td>
+        </tr>
+        {{end}}
+
+    </table>
+</body>
+</html>

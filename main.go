@@ -14,6 +14,16 @@ import (
 
 // Kita buat variabel global 'db' agar bisa diakses oleh semua fungsi
 var db *sql.DB
+type Mahasiswa struct {
+	Nomor int
+	NIM int
+	Nama string
+	Alamat string
+	Email string
+	NoHP string
+	JenisKelamin string
+}
+var NomorUrut = 1
 
 // Fungsi khusus untuk menyalakan database
 func connectDB() {
@@ -111,14 +121,58 @@ func prosesPendaftaran(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Data Saudara %s telah resmi tersimpan di database kami.", nama)
 }
 
+// Handler 3: Menampilkan Data Tabel
+func tampilkanData(w http.ResponseWriter, r *http.Request) {
+	// 1. Ambil data dari database
+	rows, err := db.Query("SELECT nim, nama,  alamat, no_hp, email, jenis_kelamin FROM tbl_mahasiswa")
+	if err != nil {
+		http.Error(w, "Gagal mengambil data", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close() // Pastikan baris ditutup setelah selesai dibaca
+
+	// 2. Siapkan wadah kosong (Slice/Array) untuk menampung semua data
+	var daftarMahasiswa []Mahasiswa
+
+	// 3. Lakukan perulangan untuk membaca data baris demi baris
+	for rows.Next() {
+		var mhs Mahasiswa
+		// Scan bertugas memindahkan data dari database ke dalam Struct mhs
+		err = rows.Scan(&mhs.NIM, &mhs.Nama, &mhs.Alamat, &mhs.NoHP, &mhs.Email, &mhs.JenisKelamin)
+		if err != nil {
+			fmt.Println("Ada error saat scan data:", err)
+			continue
+		}
+		mhs.Nomor = NomorUrut // Beri nomor urut berdasarkan posisi data
+		NomorUrut++ // Tambah nomor urut untuk data berikutnya
+
+		// Masukkan data mhs yang sudah terisi ke dalam wadah utama
+		daftarMahasiswa = append(daftarMahasiswa, mhs)
+	}
+
+	// 4. Kirim wadah utama ke file HTML
+	filepath := path.Join("views", "data.html")
+	tmpl, err := template.ParseFiles(filepath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Kita mengirim 'daftarMahasiswa' agar bisa dibaca oleh {{range .}} di HTML
+	tmpl.Execute(w, daftarMahasiswa) 
+}
+
+
+
 func main() {
-	// Nyalakan koneksi DB pertama kali saat server hidup
 	connectDB()
-	// Pastikan DB ditutup kalau server dimatikan (Ctrl+C)
 	defer db.Close() 
 
 	http.HandleFunc("/", tampilkanForm)
 	http.HandleFunc("/proses", prosesPendaftaran)
+	
+	// DAFTARKAN RUTE BARU DI SINI
+	http.HandleFunc("/data", tampilkanData)
 
 	fmt.Println("🚀 Server Web berjalan di http://localhost:8080")
 	http.ListenAndServe(":8080", nil)
