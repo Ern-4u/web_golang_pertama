@@ -24,6 +24,7 @@
             <th>No. HP</th>
             <th>Email</th>
             <th>Jenis Kelamin</th>
+            <th>Aksi</th>
         </tr>
         
         {{range .}}
@@ -35,6 +36,10 @@
             <td>{{.NoHP}}</td>
             <td>{{.Email}}</td>
             <td>{{.JenisKelamin}}</td>
+            <td>
+                <a href="/edit?nim={{.NIM}}">Edit</a> |
+                <a href="/hapus?nim={{.NIM}}" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');">Hapus</a>
+            </td>
         </tr>
         {{end}}
 

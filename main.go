@@ -162,6 +162,95 @@ func tampilkanData(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, daftarMahasiswa) 
 }
 
+// Handler 4: Menghapus Data
+func hapusData(w http.ResponseWriter, r *http.Request) {
+	// 1. Tangkap parameter "nim" dari URL (?nim=...)
+	nimTarget := r.URL.Query().Get("nim")
+
+	// Cegah jika ada yang iseng mengakses /hapus tanpa mengirim NIM
+	if nimTarget == "" {
+		http.Error(w, "NIM tidak ditemukan di URL!", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Eksekusi perintah DELETE ke MySQL
+	// Ingat, kita pakai db.Exec untuk perintah yang mengubah isi database
+	_, err := db.Exec("DELETE FROM tbl_mahasiswa WHERE nim = ?", nimTarget)
+	
+	if err != nil {
+		http.Error(w, "Gagal menghapus data dari database", http.StatusInternalServerError)
+		fmt.Println("Error Hapus DB:", err)
+		return
+	}
+
+	// 3. Jika berhasil dihapus, lempar/alihkan kembali pengunjung ke halaman tabel
+	http.Redirect(w, r, "/data", http.StatusSeeOther)
+}
+
+// Handler 5: Menampilkan Form Edit dengan Data Lama
+func tampilkanEditForm(w http.ResponseWriter, r *http.Request) {
+	// 1. Ambil NIM dari URL (?nim=...)
+	nimTarget := r.URL.Query().Get("nim")
+	if nimTarget == "" {
+		http.Error(w, "NIM tidak valid", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Cari data mahasiswa tersebut ke database
+	// Kita gunakan db.QueryRow karena kita sudah pasti hanya mengambil SATU data saja
+	var mhs Mahasiswa
+	err := db.QueryRow("SELECT nim, nama, alamat, no_hp, email, jenis_kelamin FROM tbl_mahasiswa WHERE nim = ?", nimTarget).
+		Scan(&mhs.NIM, &mhs.Nama, &mhs.Alamat, &mhs.NoHP, &mhs.Email, &mhs.JenisKelamin)
+
+	if err != nil {
+		http.Error(w, "Data mahasiswa tidak ditemukan di database", http.StatusNotFound)
+		return
+	}
+
+	// 3. Lempar data tersebut ke file edit.html
+	filepath := path.Join("views", "edit.html")
+	tmpl, err := template.ParseFiles(filepath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	tmpl.Execute(w, mhs)
+}
+
+// Handler 6: Menyimpan Data Baru Hasil Edit ke Database
+func prosesUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Harus menggunakan metode POST", http.StatusMethodNotAllowed)
+		return
+	}
+	r.ParseForm()
+
+	// Tangkap data dari form edit
+	nim := r.FormValue("nim") // NIM diambil untuk penanda WHERE di SQL
+	nama := strings.TrimSpace(r.FormValue("nama"))
+	alamat := strings.TrimSpace(r.FormValue("alamat"))
+	noHp := strings.TrimSpace(r.FormValue("no_hp"))
+	email := strings.TrimSpace(r.FormValue("email"))
+	jenisKelamin := r.FormValue("jenis_kelamin")
+
+	// (Kamu bisa menyelipkan satpam validasi noHp dan email di sini seperti biasa)
+
+	// Eksekusi perintah UPDATE ke MySQL
+	_, errDB := db.Exec("UPDATE tbl_mahasiswa SET nama=?, alamat=?, no_hp=?, email=?, jenis_kelamin=? WHERE nim=?", 
+		nama, alamat, noHp, email, jenisKelamin, nim)
+
+	if errDB != nil {
+		http.Error(w, "Gagal memperbarui data di database", http.StatusInternalServerError)
+		fmt.Println("Error Update DB:", errDB)
+		return
+	}
+
+	// Jika sukses, kembalikan ke halaman tabel data
+	http.Redirect(w, r, "/data", http.StatusSeeOther)
+}
+
+
+
 
 
 func main() {
@@ -173,6 +262,9 @@ func main() {
 	
 	// DAFTARKAN RUTE BARU DI SINI
 	http.HandleFunc("/data", tampilkanData)
+	http.HandleFunc("/hapus", hapusData)
+	http.HandleFunc("/edit", tampilkanEditForm)
+	http.HandleFunc("/update", prosesUpdate)
 
 	fmt.Println("🚀 Server Web berjalan di http://localhost:8080")
 	http.ListenAndServe(":8080", nil)
